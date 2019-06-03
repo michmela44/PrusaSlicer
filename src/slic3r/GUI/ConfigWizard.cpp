@@ -1445,6 +1445,7 @@ ConfigWizard::ConfigWizard(wxWindow *parent, RunReason reason)
     p->add_page(p->page_diams    = new PageDiameters(this));
     p->add_page(p->page_temps    = new PageTemperatures(this));
 
+    p->any_sla_selected = p->page_msla->any_selected();
     p->load_pages();
 
     vsizer->Add(topsizer, 1, wxEXPAND | wxALL, DIALOG_MARGIN);
