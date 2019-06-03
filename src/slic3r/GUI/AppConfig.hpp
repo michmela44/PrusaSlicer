@@ -128,6 +128,8 @@ public:
 	// Does the config file exist?
 	static bool 		exists();
 
+	static const std::string SECTION_FILAMENTS;
+    static const std::string SECTION_MATERIALS;
 private:
 	// Map of section, name -> value
 	std::map<std::string, std::map<std::string, std::string>> 	m_storage;
