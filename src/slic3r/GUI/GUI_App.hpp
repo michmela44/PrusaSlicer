@@ -6,6 +6,7 @@
 #include "libslic3r/PrintConfig.hpp"
 #include "MainFrame.hpp"
 #include "ImGuiWrapper.hpp"
+#include "ConfigWizard.hpp"
 
 #include <wx/app.h>
 #include <wx/colour.h>
@@ -66,6 +67,7 @@ enum ConfigMenuIDs {
 };
 
 class Tab;
+class ConfigWizard;
 
 static wxString dots("…", wxConvUTF8);
 
@@ -89,6 +91,7 @@ class GUI_App : public wxApp
 
     std::unique_ptr<ImGuiWrapper> m_imgui;
     std::unique_ptr<PrintHostJobQueue> m_printhost_job_queue;
+    std::unique_ptr<ConfigWizard> m_wizard;
 
 public:
     bool            OnInit() override;
@@ -175,6 +178,7 @@ public:
     PrintHostJobQueue& printhost_job_queue() { return *m_printhost_job_queue.get(); }
 
     void            open_web_page_localized(const std::string &http_address);
+    bool            run_wizard(ConfigWizard::RunReason reason, ConfigWizard::StartPage start_page = ConfigWizard::SP_WELCOME);
 
 private:
     bool            on_init_inner();
@@ -183,6 +187,7 @@ private:
     void            window_pos_sanitize(wxTopLevelWindow* window);
     bool            select_language();
     void            save_language();
+    bool            config_wizard_startup();
     std::vector<const wxLanguageInfo*> get_installed_languages();
 #ifdef __WXMSW__
     void            associate_3mf_files();

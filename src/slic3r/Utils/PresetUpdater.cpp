@@ -601,11 +601,9 @@ PresetUpdater::UpdateResult PresetUpdater::config_update() const
 		if (res == wxID_REPLACE) {
 			BOOST_LOG_TRIVIAL(info) << "User wants to re-configure...";
 			p->perform_updates(std::move(updates));
-			GUI::ConfigWizard wizard(nullptr, GUI::ConfigWizard::RR_DATA_INCOMPAT);
-			if (! wizard.run(GUI::wxGetApp().preset_bundle, this)) {
+			if (! GUI::wxGetApp().run_wizard(GUI::ConfigWizard::RR_DATA_INCOMPAT)) {
 				return R_INCOMPAT_EXIT;
 			}
-			GUI::wxGetApp().load_current_presets();
 			return R_INCOMPAT_CONFIGURED;
 		} else {
 			BOOST_LOG_TRIVIAL(info) << "User wants to exit Slic3r, bye...";

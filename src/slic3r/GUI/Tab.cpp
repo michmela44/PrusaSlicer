@@ -239,7 +239,7 @@ void Tab::create_preset_tab()
 				selected_string == "-------  User presets  -------"*/) {
 				m_presets_choice->SetSelection(m_selected_preset_item);
 				if (wxString::FromUTF8(selected_string.c_str()) == PresetCollection::separator(L("Add a new printer")))
-					wxTheApp->CallAfter([]() { Slic3r::GUI::config_wizard(Slic3r::GUI::ConfigWizard::RR_USER); });
+					wxTheApp->CallAfter([]() { wxGetApp().run_wizard(ConfigWizard::RR_USER); });
 				return;
 			}
 			m_selected_preset_item = selected_item;

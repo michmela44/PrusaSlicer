@@ -38,7 +38,6 @@
 #include "../Utils/PresetUpdater.hpp"
 #include "../Utils/PrintHost.hpp"
 #include "../Utils/MacDarkMode.hpp"
-#include "ConfigWizard.hpp"
 #include "slic3r/Config/Snapshot.hpp"
 #include "ConfigSnapshotDialog.hpp"
 #include "FirmwareDialog.hpp"
@@ -46,6 +45,7 @@
 #include "Tab.hpp"
 #include "SysInfoDialog.hpp"
 #include "KBShortcutsDialog.hpp"
+#include "UpdateDialogs.hpp"
 
 #ifdef __WXMSW__
 #include <Shlobj.h>
@@ -139,6 +139,7 @@ GUI_App::GUI_App()
     : wxApp()
     , m_em_unit(10)
     , m_imgui(new ImGuiWrapper())
+    , m_wizard(nullptr)
 {}
 
 bool GUI_App::OnInit()
@@ -183,7 +184,6 @@ bool GUI_App::on_init_inner()
     // supplied as argument to --datadir; in that case we should still run the wizard
     preset_bundle->setup_directories();
 
-    app_conf_exists = app_config->exists();
     // load settings
     app_conf_exists = app_config->exists();
     if (app_conf_exists) {
@@ -265,7 +265,7 @@ bool GUI_App::on_init_inner()
             }
 
             CallAfter([this] {
-                if (!config_wizard_startup(app_conf_exists)) {
+                if (!config_wizard_startup()) {
                     // Only notify if there was no wizard so as not to bother too much ...
                     preset_updater->slic3r_update_notify();
                 }
@@ -660,6 +660,24 @@ void GUI_App::save_language()
     app_config->save();
 }
 
+bool GUI_App::config_wizard_startup()
+{
+    if (!app_conf_exists || preset_bundle->printers.size() <= 1) {
+        run_wizard(ConfigWizard::RR_DATA_EMPTY);
+        return true;
+    } else if (get_app_config()->legacy_datadir()) {
+        // Looks like user has legacy pre-vendorbundle data directory,
+        // explain what this is and run the wizard
+
+        MsgDataLegacy dlg;
+        dlg.ShowModal();
+
+        run_wizard(ConfigWizard::RR_DATA_LEGACY);
+        return true;
+    }
+    return false;
+}
+
 // Get a list of installed languages
 std::vector<const wxLanguageInfo*> GUI_App::get_installed_languages()
 {
@@ -765,7 +783,7 @@ void GUI_App::add_config_menu(wxMenuBar *menu)
     local_menu->Bind(wxEVT_MENU, [this, config_id_base](wxEvent &event) {
         switch (event.GetId() - config_id_base) {
         case ConfigMenuWizard:
-            config_wizard(ConfigWizard::RR_USER);
+            run_wizard(ConfigWizard::RR_USER);
             break;
         case ConfigMenuTakeSnapshot:
             // Take a configuration snapshot.
@@ -958,6 +976,29 @@ int GUI_App::extruders_edited_cnt() const
 void GUI_App::open_web_page_localized(const std::string &http_address)
 {
     wxLaunchDefaultBrowser(http_address + "&lng=" + this->current_language_code());
+}
+
+bool GUI_App::run_wizard(ConfigWizard::RunReason reason, ConfigWizard::StartPage start_page)
+{
+    if (! m_wizard) {
+        m_wizard.reset(new ConfigWizard());
+    }
+
+    const bool res = m_wizard->run(reason, start_page);
+
+    if (res) {
+        load_current_presets();
+
+        if (preset_bundle->printers.get_edited_preset().printer_technology() == ptSLA &&
+            obj_list()->has_multi_part_objects()) {
+            GUI::show_info(nullptr,
+                _(L("It's impossible to print multi-part object(s) with SLA technology.")) + "\n\n" +
+                _(L("Please check and fix your object list.")),
+                _(L("Attention!")));
+        }
+    }
+
+    return res;
 }
 
 void GUI_App::window_pos_save(wxTopLevelWindow* window, const std::string &name)
