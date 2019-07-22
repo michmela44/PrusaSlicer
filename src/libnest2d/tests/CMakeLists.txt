@@ -57,4 +57,4 @@ else()
     target_link_libraries(tests_clipper_nlopt libnest2d)
 endif()
 
-add_test(libnest2d_tests tests_clipper_nlopt)
+gtest_discover_tests(tests_clipper_nlopt TEST_PREFIX libnest2d.)

@@ -203,6 +203,7 @@ target_link_libraries(libslic3r
     qhull
     semver
     tbb
+    ${CMAKE_DL_LIBS}
     )
 
 if(WIN32)

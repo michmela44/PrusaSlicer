@@ -62,6 +62,7 @@ public:
     // This method is used exclusively to calculate new flow of 100% infill, where the extrusion width was allowed to scale
     // to fit a region with integer number of lines.
     static Flow new_from_spacing(float spacing, float nozzle_diameter, float height, bool bridge);
+    template <class T> static T solid_spacing(const T total_width, const T spacing);
 };
 
 extern Flow support_material_flow(const PrintObject *object, float layer_height = 0.f);

@@ -12,6 +12,7 @@
 #include "../BoundingBox.hpp"
 #include "../PrintConfig.hpp"
 #include "../Utils.hpp"
+#include "../ExPolygon.hpp"
 
 namespace Slic3r {
 

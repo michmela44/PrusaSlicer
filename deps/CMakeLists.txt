@@ -93,6 +93,7 @@ if (MSVC)
         dep_nlopt
         # dep_qhull # Experimental
         dep_zlib    # on Windows we still need zlib
+        dep_catch2
     )
 
 else()
@@ -108,6 +109,7 @@ else()
         dep_nlopt
         dep_qhull
         # dep_libigl # Not working, static build has different Eigen
+        dep_catch2
     )
 
 endif()
