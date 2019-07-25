@@ -1519,7 +1519,7 @@ public:
     /// and which could be resolved by this->optptr(key) call.
     t_config_option_keys keys() const;
 
-protected:
+// protected:
     /// Set all statically defined config options to their defaults defined by this->def().
     void set_defaults();
 };

@@ -2,7 +2,15 @@ find_package(Catch2 REQUIRED)
 
 add_executable(libslic3r_tests 
     test_harness.cpp
-    fill.cpp
+    test_fill.cpp
+    test_gcodewriter.cpp
+    test_options.hpp
+)
+
+set_target_properties(libslic3r_tests PROPERTIES
+    CXX_STANDARD 14
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
 )
 
 target_include_directories(libslic3r_tests 
