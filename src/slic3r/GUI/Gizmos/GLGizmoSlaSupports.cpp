@@ -59,7 +59,7 @@ bool GLGizmoSlaSupports::on_init()
 
 void GLGizmoSlaSupports::set_sla_support_data(ModelObject* model_object, const Selection& selection)
 {
-    if (selection.is_empty()) {
+    if (! model_object || selection.is_empty()) {
         m_model_object = nullptr;
         return;
     }
@@ -900,6 +900,10 @@ RENDER_AGAIN:
         ImGui::SameLine(diameter_slider_left);
         ImGui::PushItemWidth(window_width - diameter_slider_left);
 
+        // Following is a nasty way to:
+        //  - save the initial value of the slider before one starts messing with it
+        //  - keep updating the head radius during sliding so it is continuosly refreshed in 3D scene
+        //  - take correct undo/redo snapshot after the user is done with moving the slider
         float initial_value = m_new_point_head_diameter;
         ImGui::SliderFloat("", &m_new_point_head_diameter, 0.1f, diameter_upper_cap, "%.1f");
         if (ImGui::IsItemClicked()) {
@@ -960,20 +964,35 @@ RENDER_AGAIN:
         float density = static_cast<const ConfigOptionInt*>(opts[0])->value;
         float minimal_point_distance = static_cast<const ConfigOptionFloat*>(opts[1])->value;
 
-        bool value_changed = ImGui::SliderFloat("", &minimal_point_distance, 0.f, 20.f, "%.f mm");
-        if (value_changed)
-            m_model_object->config.opt<ConfigOptionFloat>("support_points_minimal_distance", true)->value = minimal_point_distance;
+        ImGui::SliderFloat("", &minimal_point_distance, 0.f, 20.f, "%.f mm");
+        bool slider_clicked = ImGui::IsItemClicked(); // someone clicked the slider
+        bool slider_edited = ImGui::IsItemEdited(); // someone is dragging the slider
+        bool slider_released = ImGui::IsItemDeactivatedAfterEdit(); // someone has just released the slider
 
         m_imgui->text(m_desc.at("points_density"));
         ImGui::SameLine(settings_sliders_left);
 
-        if (ImGui::SliderFloat(" ", &density, 0.f, 200.f, "%.f %%")) {
-            value_changed = true;
+        ImGui::SliderFloat(" ", &density, 0.f, 200.f, "%.f %%");
+        slider_clicked |= ImGui::IsItemClicked();
+        slider_edited |= ImGui::IsItemEdited();
+        slider_released |= ImGui::IsItemDeactivatedAfterEdit();
+
+        if (slider_clicked) { // stash the values of the settings so we know what to revert to after undo
+            m_minimal_point_distance_stash = minimal_point_distance;
+            m_density_stash = density;
+        }
+        if (slider_edited) {
+            m_model_object->config.opt<ConfigOptionFloat>("support_points_minimal_distance", true)->value = minimal_point_distance;
             m_model_object->config.opt<ConfigOptionInt>("support_points_density_relative", true)->value = (int)density;
         }
-
-        if (value_changed) // Update side panel
+        if (slider_released) {
+            m_model_object->config.opt<ConfigOptionFloat>("support_points_minimal_distance", true)->value = m_minimal_point_distance_stash;
+            m_model_object->config.opt<ConfigOptionInt>("support_points_density_relative", true)->value = (int)m_density_stash;
+            wxGetApp().plater()->take_snapshot(_(L("Support parameter change")));
+            m_model_object->config.opt<ConfigOptionFloat>("support_points_minimal_distance", true)->value = minimal_point_distance;
+            m_model_object->config.opt<ConfigOptionInt>("support_points_density_relative", true)->value = (int)density;
             wxGetApp().obj_list()->update_and_show_object_settings_item();
+        }
 
         bool generate = m_imgui->button(m_desc.at("auto_generate"));
 
@@ -1031,13 +1050,18 @@ RENDER_AGAIN:
     if (remove_selected || remove_all) {
         force_refresh = false;
         m_parent.set_as_dirty();
+        bool was_in_editing = m_editing_mode;
+        if (! was_in_editing)
+            switch_to_editing_mode();
         if (remove_all) {
-            if (!m_editing_mode)
-                switch_to_editing_mode();
             select_point(AllPoints);
             delete_selected_points(true); // true - delete regardless of locked status
-            editing_mode_apply_changes();
         }
+        if (remove_selected)
+            delete_selected_points(false); // leave locked points
+        if (! was_in_editing)
+            editing_mode_apply_changes();
+
         if (first_run) {
             first_run = false;
             goto RENDER_AGAIN;
@@ -1172,7 +1196,8 @@ void GLGizmoSlaSupports::on_load(cereal::BinaryInputArchive& ar)
        m_model_object_id,
        m_new_point_head_diameter,
        m_normal_cache,
-       m_editing_cache
+       m_editing_cache,
+       m_selection_empty
     );
 }
 
@@ -1185,7 +1210,8 @@ void GLGizmoSlaSupports::on_save(cereal::BinaryOutputArchive& ar) const
        m_model_object_id,
        m_new_point_head_diameter,
        m_normal_cache,
-       m_editing_cache
+       m_editing_cache,
+       m_selection_empty
     );
 }
 
