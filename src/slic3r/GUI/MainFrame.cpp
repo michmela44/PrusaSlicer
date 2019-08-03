@@ -279,6 +279,18 @@ bool MainFrame::can_export_gcode() const
     return true;
 }
 
+bool MainFrame::can_send_gcode() const
+{
+    if (m_plater == nullptr)
+        return false;
+
+    if (m_plater->model().objects.empty())
+        return false;
+
+    const auto prin_host_opt =wxGetApp().preset_bundle->printers.get_edited_preset().config.option<ConfigOptionString>("print_host");
+    return prin_host_opt != nullptr && !prin_host_opt->value.empty();
+}
+
 bool MainFrame::can_slice() const
 {
     bool bg_proc = wxGetApp().app_config->get("background_processing") == "1";
@@ -411,6 +423,7 @@ void MainFrame::init_menubar()
             }, wxID_FILE1, wxID_FILE9);
 
         std::vector<std::string> recent_projects = wxGetApp().app_config->get_recent_projects();
+        std::reverse(recent_projects.begin(), recent_projects.end());
         for (const std::string& project : recent_projects)
         {
             m_recent_projects.AddFileToHistory(from_u8(project));
@@ -450,6 +463,10 @@ void MainFrame::init_menubar()
             [this](wxCommandEvent&) { if (m_plater) m_plater->export_gcode(); }, menu_icon("export_gcode"), nullptr,
             [this](){return can_export_gcode(); }, this);
         m_changeable_menu_items.push_back(item_export_gcode);
+        wxMenuItem* item_send_gcode = append_menu_item(export_menu, wxID_ANY, _(L("S&end G-code")) + dots +"\tCtrl+Shift+G", _(L("Send to print current plate as G-code")),
+            [this](wxCommandEvent&) { if (m_plater) m_plater->send_gcode(); }, menu_icon("export_gcode"), nullptr,
+            [this](){return can_send_gcode(); }, this);
+        m_changeable_menu_items.push_back(item_send_gcode);
         export_menu->AppendSeparator();
         append_menu_item(export_menu, wxID_ANY, _(L("Export plate as &STL")) + dots, _(L("Export current plate as STL")),
             [this](wxCommandEvent&) { if (m_plater) m_plater->export_stl(); }, menu_icon("export_plater"), nullptr,
@@ -688,7 +705,8 @@ void MainFrame::update_menubar()
 {
     const bool is_fff = plater()->printer_technology() == ptFFF;
 
-    m_changeable_menu_items[miExport]       ->SetItemLabel((is_fff ? _(L("Export &G-code"))         : _(L("Export"))                    )   + dots + "\tCtrl+G");
+    m_changeable_menu_items[miExport]       ->SetItemLabel((is_fff ? _(L("Export &G-code"))         : _(L("E&xport"))       ) + dots     + "\tCtrl+G");
+    m_changeable_menu_items[miSend]         ->SetItemLabel((is_fff ? _(L("S&end G-code"))           : _(L("S&end to print"))) + dots    + "\tCtrl+Shift+G");
 
     m_changeable_menu_items[miMaterialTab]  ->SetItemLabel((is_fff ? _(L("&Filament Settings Tab")) : _(L("Mate&rial Settings Tab")))   + "\tCtrl+3");
     m_changeable_menu_items[miMaterialTab]  ->SetBitmap(create_scaled_bitmap(this, menu_icon(is_fff ? "spool": "resin")));
