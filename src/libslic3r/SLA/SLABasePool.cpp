@@ -205,7 +205,7 @@ void offset(ExPolygon& sh, coord_t distance, bool edgerounding = true) {
     }
 
     auto jointype = edgerounding? jtRound : jtMiter;
-    
+
     ClipperOffset offs;
     offs.ArcTolerance = scaled<double>(0.01);
     Paths result;
@@ -356,7 +356,7 @@ ExPolygons unify(const ExPolygons& shapes) {
 
 Polygons unify(const Polygons& shapes) {
     using ClipperLib::ptSubject;
-    
+
     bool closed = true;
     bool valid = true;
 
@@ -379,21 +379,21 @@ Polygons unify(const Polygons& shapes) {
         Polygon pp = ClipperPath_to_Slic3rPolygon(p);
         if (!pp.is_clockwise()) ret.emplace_back(std::move(pp));
     }
-    
+
     return ret;
 }
 
 // Function to cut tiny connector cavities for a given polygon. The input poly
 // will be offsetted by "padding" and small rectangle shaped cavities will be
 // inserted along the perimeter in every "stride" distance. The stick rectangles
-// will have a with about "stick_width". The input dimensions are in world 
+// will have a with about "stick_width". The input dimensions are in world
 // measure, not the scaled clipper units.
 void breakstick_holes(ExPolygon& poly,
                       double padding,
                       double stride,
                       double stick_width,
                       double penetration)
-{   
+{
     // SVG svg("bridgestick_plate.svg");
     // svg.draw(poly);
 
@@ -449,17 +449,17 @@ void breakstick_holes(ExPolygon& poly,
             // Insert edge endpoint
             out.emplace_back(b);
         }
-        
+
         // move the new points
         out.shrink_to_fit();
         pts.swap(out);
     };
-    
+
     if(stride > 0.0 && stick_width > 0.0 && padding > 0.0) {
         transf(poly.contour.points);
         for (auto &h : poly.holes) transf(h.points);
     }
-    
+
     // svg.draw(poly);
     // svg.Close();
 }
@@ -598,7 +598,7 @@ Polygons concave_hull(const Polygons& polys, double maxd_mm, ThrowOnCancel thr)
     using SpatIndex = bgi::rtree< SpatElement, bgi::rstar<16, 4> >;
 
     if(polys.empty()) return Polygons();
-    
+
     const double max_dist = scaled(maxd_mm);
 
     Polygons punion = unify(polys);   // could be redundant
@@ -613,7 +613,7 @@ Polygons concave_hull(const Polygons& polys, double maxd_mm, ThrowOnCancel thr)
     SpatIndex ctrindex;
     unsigned  idx = 0;
     for(const Point &ct : centroids) ctrindex.insert(std::make_pair(ct, idx++));
-    
+
     // Centroid of the centroids of islands. This is where the additional
     // connector sticks are routed.
     Point cc = centroid(centroids);
@@ -630,9 +630,9 @@ Polygons concave_hull(const Polygons& polys, double maxd_mm, ThrowOnCancel thr)
         double dx = x(c) - x(cc), dy = y(c) - y(cc);
         double l = std::sqrt(dx * dx + dy * dy);
         double nx = dx / l, ny = dy / l;
-        
+
         Point& ct = centroids[idx];
-        
+
         std::vector<SpatElement> result;
         ctrindex.query(bgi::nearest(ct, 2), std::back_inserter(result));
 
@@ -642,11 +642,11 @@ Polygons concave_hull(const Polygons& polys, double maxd_mm, ThrowOnCancel thr)
                 dist = Line(el.first, ct).length();
                 break;
             }
-        
+
         idx++;
-        
+
         if (dist >= max_dist) return Polygon();
-        
+
         Polygon r;
         auto& ctour = r.points;
 
@@ -673,14 +673,14 @@ void base_plate(const TriangleMesh &      mesh,
                 ThrowOnCancel             thrfn)
 {
     if (mesh.empty()) return;
-    //    m.require_shared_vertices(); // TriangleMeshSlicer needs this    
+    //    m.require_shared_vertices(); // TriangleMeshSlicer needs this
     TriangleMeshSlicer slicer(&mesh);
-    
+
     std::vector<ExPolygons> out; out.reserve(heights.size());
     slicer.slice(heights, 0.f, &out, thrfn);
-    
+
     size_t count = 0; for(auto& o : out) count += o.size();
-    
+
     // Now we have to unify all slice layers which can be an expensive operation
     // so we will try to simplify the polygons
     ExPolygons tmp; tmp.reserve(count);
@@ -689,9 +689,9 @@ void base_plate(const TriangleMesh &      mesh,
             auto&& exss = e.simplify(scaled<double>(0.1));
             for(ExPolygon& ep : exss) tmp.emplace_back(std::move(ep));
         }
-    
+
     ExPolygons utmp = unify(tmp);
-    
+
     for(auto& o : utmp) {
         auto&& smp = o.simplify(scaled<double>(0.1));
         output.insert(output.end(), smp.begin(), smp.end());
@@ -707,16 +707,16 @@ void base_plate(const TriangleMesh &mesh,
     auto bb = mesh.bounding_box();
     float gnd = float(bb.min(Z));
     std::vector<float> heights = {float(bb.min(Z))};
-    
+
     for(float hi = gnd + layerh; hi <= gnd + h; hi += layerh)
         heights.emplace_back(hi);
-    
+
     base_plate(mesh, output, heights, thrfn);
 }
 
-Contour3D create_base_pool(const Polygons &ground_layer, 
+Contour3D create_base_pool(const Polygons &ground_layer,
                            const ExPolygons &obj_self_pad = {},
-                           const PoolConfig& cfg = PoolConfig()) 
+                           const PoolConfig& cfg = PoolConfig())
 {
     // for debugging:
     // Benchmark bench;
@@ -761,7 +761,7 @@ Contour3D create_base_pool(const Polygons &ground_layer,
         offset(outer_base, s_safety_dist + s_wingdist + s_thickness);
 
         ExPolygon bottom_poly; bottom_poly.contour = outer_base;
-        offset(bottom_poly, -s_bottom_offs);
+        if (s_bottom_offs != 0) offset(bottom_poly, -s_bottom_offs);
 
         // Punching a hole in the top plate for the cavity
         ExPolygon top_poly;
@@ -843,24 +843,31 @@ Contour3D create_base_pool(const Polygons &ground_layer,
         }
 
         if (cfg.embed_object) {
+
+            // Cut out the object bottom silhouette from the current pad part
             ExPolygons bttms = diff_ex(to_polygons(bottom_poly),
                                        to_polygons(obj_self_pad));
-            
+
+            // This would mean that the part we want to cut out from the pad
+            // completely overlaps the pad.
             assert(!bttms.empty());
-            
+
+            // Make sure the biggest comes first
             std::sort(bttms.begin(), bttms.end(),
                       [](const ExPolygon& e1, const ExPolygon& e2) {
                           return e1.contour.area() > e2.contour.area();
                       });
-            
+
+            // The top polygon should be an inflated or identical polygon with
+            // the bottom_poly so we can spare the diff_ex
             if(wingheight > 0) inner_base.holes = bttms.front().holes;
             else top_poly.holes = bttms.front().holes;
 
             auto straight_walls =
                 [&pool](const Polygon &cntr, coord_t z_low, coord_t z_high) {
-                    
+
                 auto lines = cntr.lines();
-                
+
                 for (auto &l : lines) {
                     auto s = coord_t(pool.points.size());
                     auto& pts = pool.points;
@@ -868,46 +875,49 @@ Contour3D create_base_pool(const Polygons &ground_layer,
                     pts.emplace_back(unscale(l.b.x(), l.b.y(), z_low));
                     pts.emplace_back(unscale(l.a.x(), l.a.y(), z_high));
                     pts.emplace_back(unscale(l.b.x(), l.b.y(), z_high));
-                    
+
                     pool.indices.emplace_back(s, s + 1, s + 3);
                     pool.indices.emplace_back(s, s + 3, s + 2);
                 }
             };
-            
+
             coord_t z_lo = -scaled(fullheight), z_hi = -scaled(wingheight);
+
+            // triangulate the final bottom poly and the hole walls
             for (ExPolygon &ep : bttms) {
                 pool.merge(triangulate_expolygon_3d(ep, -fullheight, true));
                 for (auto &h : ep.holes) straight_walls(h, z_lo, z_hi);
             }
-            
-            // Skip the outer contour, triangulate the holes
+
+            // Skip the outer contour and triangulate all other contour walls.
+            // The outer contour wall might be sloped, that is taken care off.
             for (auto it = std::next(bttms.begin()); it != bttms.end(); ++it) {
                 pool.merge(triangulate_expolygon_3d(*it, -wingheight));
                 straight_walls(it->contour, z_lo, z_hi);
             }
-            
+
         } else {
             // Now we need to triangulate the top and bottom plates as well as
             // the cavity bottom plate which is the same as the bottom plate
             // but it is elevated by the thickness.
-            
+
             pool.merge(triangulate_expolygon_3d(bottom_poly, -fullheight, true));
         }
-        
+
         pool.merge(triangulate_expolygon_3d(top_poly));
 
         if(wingheight > 0)
             pool.merge(triangulate_expolygon_3d(inner_base, -wingheight));
 
     }
-    
+
     return pool;
 }
 
 void create_base_pool(const Polygons &ground_layer, TriangleMesh& out,
                       const ExPolygons &holes, const PoolConfig& cfg)
 {
-    
+
 
     // For debugging:
     // bench.stop();
