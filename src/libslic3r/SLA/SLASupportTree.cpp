@@ -96,11 +96,11 @@ template<> struct _ccr<true>
     template<class It, class Fn>
     static inline void enumerate(It from, It to, Fn fn)
     {
-        using TN = size_t;
-        auto iN  = to - from;
-        TN   N   = iN < 0 ? 0 : TN(iN);
+        auto   iN = to - from;
+        size_t N  = iN < 0 ? 0 : size_t(iN);
 
-        tbb::parallel_for(TN(0), N, [from, fn](TN n) { fn(*(from + n), n); });
+        tbb::parallel_for(size_t(0), N,
+                          [from, fn](size_t n) { fn(*(from + long(n)), n); });
     }
 };
 
@@ -111,7 +111,7 @@ template<> struct _ccr<false>
     template<class It, class Fn>
     static inline void enumerate(It from, It to, Fn fn)
     {
-        for (auto it = from; it != to; ++it) fn(*it, it - from);
+        for (auto it = from; it != to; ++it) fn(*it, size_t(it - from));
     }
 };
 
@@ -599,14 +599,13 @@ struct Pad {
 
     Pad() = default;
 
-    Pad(const TriangleMesh& support_mesh,
-        const ExPolygons& modelbase,
-        double ground_level,
-        const PoolConfig& pcfg) :
-        cfg(pcfg),
-        zlevel(ground_level +
-               sla::get_pad_fullheight(pcfg) -
-               sla::get_pad_elevation(pcfg))
+    Pad(const TriangleMesh &support_mesh,
+        const ExPolygons &  modelbase,
+        double              ground_level,
+        const PoolConfig &  pcfg)
+        : cfg(pcfg)
+        , zlevel(ground_level + sla::get_pad_fullheight(pcfg) -
+                 sla::get_pad_elevation(pcfg))
     {
         Polygons basep;
         auto &thr = cfg.throw_on_cancel;
@@ -636,9 +635,10 @@ struct Pad {
             ExPolygons modelbase_offs = modelbase;
 
             if (pcfg.embed_object.object_gap_mm > 0.0)
-                modelbase_offs
-                    = offset_ex(modelbase_offs,
-                                float(scaled(pcfg.embed_object.object_gap_mm)));
+                modelbase_offs =
+                    offset_ex(modelbase_offs,
+                              scaled<float>(pcfg.embed_object.object_gap_mm +
+                                            pcfg.min_wall_thickness_mm));
 
             // Create a spatial index of the support silhouette polygons.
             // This will be used to check for intersections with the model
@@ -649,7 +649,7 @@ struct Pad {
                 unsigned idx = 0;
                 for(auto &bp : basep) {
                     auto bb = bp.bounding_box();
-                    bb.offset(float(scaled(pcfg.min_wall_thickness_mm)));
+                    bb.offset(scaled(pcfg.min_wall_thickness_mm));
                     bindex.insert(bb, idx++);
                 }
             }
@@ -660,14 +660,14 @@ struct Pad {
 
             // Punching the breaksticks across the offsetted polygon perimeters
             auto pad_stickholes = reserve_vector<ExPolygon>(modelbase.size());
-            for(auto& poly : modelbase_offs) {
+            for(auto& polyoffs : modelbase_offs) {
 
                 bool overlap = false;
                 for (const ExPolygon &p : concaveh)
-                    overlap = overlap || poly.overlaps(p);
+                    overlap = overlap || polyoffs.overlaps(p);
 
-                auto bb = poly.contour.bounding_box();
-                bb.offset(scaled<float>(pcfg.min_wall_thickness_mm));
+                auto bb = polyoffs.contour.bounding_box();
+                bb.offset(scaled(pcfg.min_wall_thickness_mm));
 
                 std::vector<BoxIndexEl> qres =
                     bindex.query(bb, BoxIndex::qtIntersects);
@@ -680,29 +680,36 @@ struct Pad {
                     // original (offsetted) version with the rest of the pad
                     // base plate.
 
-                    basep.emplace_back(poly.contour);
+                    ExPolygons poly_shrinkback =
+                        offset_ex(polyoffs,
+                                  -scaled<float>(pcfg.min_wall_thickness_mm));
 
-                    // The holes of 'poly' will become positive parts of the
-                    // pad, so they has to be checked for intersections as well
-                    // and erased if there is no intersection with the supports
-                    auto it = poly.holes.begin();
-                    while(it != poly.holes.end()) {
-                        if (bindex.query(it->bounding_box(),
-                                         BoxIndex::qtIntersects).empty())
-                            it = poly.holes.erase(it);
-                        else
-                            ++it;
+                    for (auto &poly : poly_shrinkback) {
+                        basep.emplace_back(poly.contour);
+
+                        // The holes of 'poly' will become positive parts of
+                        // the pad, so they have to be checked for
+                        // intersections as well and erased if there is no
+                        // intersection with the supports
+                        auto it = poly.holes.begin();
+                        while(it != poly.holes.end()) {
+                            if (bindex.query(it->bounding_box(),
+                                             BoxIndex::qtIntersects).empty())
+                                it = poly.holes.erase(it);
+                            else
+                                ++it;
+                        }
+
+                        // Punch the breaksticks
+                        sla::breakstick_holes(
+                            poly,
+                            pcfg.embed_object.object_gap_mm,   // padding
+                            pcfg.embed_object.stick_stride_mm,
+                            pcfg.embed_object.stick_width_mm,
+                            pcfg.embed_object.stick_penetration_mm);
+
+                        pad_stickholes.emplace_back(poly);
                     }
-
-                    // Punch the breaksticks
-                    sla::breakstick_holes(
-                        poly,
-                        pcfg.embed_object.object_gap_mm,   // padding
-                        pcfg.embed_object.stick_stride_mm,
-                        pcfg.embed_object.stick_width_mm,
-                        pcfg.embed_object.stick_penetration_mm);
-
-                    pad_stickholes.emplace_back(poly);
                 }
             }
 
@@ -786,8 +793,9 @@ class SLASupportTree::Impl {
 
     using Mutex = ccr::Mutex;
 
+    mutable TriangleMesh meshcache;
     mutable Mutex m_mutex;
-    mutable TriangleMesh meshcache; mutable bool meshcache_valid = false;
+    mutable bool meshcache_valid = false;
     mutable double model_height = 0; // the full height of the model
 
 public:
@@ -867,7 +875,7 @@ public:
         assert(p.starts_from_head && p.start_junction_id >= 0);
         assert(size_t(p.start_junction_id) < m_head_indices.size());
 
-        return m_heads[m_head_indices[p.start_junction_id]];
+        return m_heads[m_head_indices[size_t(p.start_junction_id)]];
     }
 
     const Pillar& head_pillar(unsigned headid) const
@@ -1545,7 +1553,7 @@ class SLASupportTree::Algorithm {
     void create_ground_pillar(const Vec3d &jp,
                               const Vec3d &sourcedir,
                               double       radius,
-                              int          head_id = -1)
+                              long         head_id = -1)
     {
         // People were killed for this number (seriously)
         static const double SQR2 = std::sqrt(2.0);
@@ -1554,7 +1562,7 @@ class SLASupportTree::Algorithm {
         double gndlvl       = m_result.ground_level;
         Vec3d  endp         = {jp(X), jp(Y), gndlvl};
         double sd           = m_cfg.pillar_base_safety_distance_mm;
-        int    pillar_id    = -1;
+        long   pillar_id    = -1;
         double min_dist     = sd + m_cfg.base_radius_mm + EPSILON;
         double dist         = 0;
         bool   can_add_base = true;
@@ -1651,7 +1659,7 @@ class SLASupportTree::Algorithm {
         }
 
         if(pillar_id >= 0) // Save the pillar endpoint in the spatial index
-            m_pillar_index.insert(endp, pillar_id);
+            m_pillar_index.insert(endp, unsigned(pillar_id));
     }
 
 public:
@@ -1728,7 +1736,7 @@ public:
         {
             m_thr();
 
-            auto n = nmls.row(i);
+            auto n = nmls.row(Eigen::Index(i));
 
             // for all normals we generate the spherical coordinates and
             // saturate the polar angle to 45 degrees from the bottom then
@@ -2618,7 +2626,10 @@ std::vector<ExPolygons> SLASupportTree::slice(
         auto bb = pad_mesh.bounding_box();
         auto maxzit = std::upper_bound(grid.begin(), grid.end(), bb.max.z());
 
-        auto padgrid = reserve_vector<float>(grid.end() - maxzit);
+        // Just to avoid unwanted huge mem allocation
+        assert(grid.end() - maxzit > 0);
+
+        auto padgrid = reserve_vector<float>(size_t(grid.end() - maxzit));
         std::copy(grid.begin(), maxzit, std::back_inserter(padgrid));
 
         TriangleMeshSlicer pad_slicer(&pad_mesh);
