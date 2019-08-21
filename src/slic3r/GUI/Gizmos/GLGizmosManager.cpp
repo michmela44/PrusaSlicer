@@ -1065,6 +1065,11 @@ void GLGizmosManager::update_on_off_state(const Vec2d& mouse_pos)
     float scaled_stride_y = scaled_icons_size + scaled_gap_y;
     float top_y = 0.5f * (cnv_h - height) + scaled_border;
 
+    // We may change m_current soon. If we did it during following loop, gizmos that take undo/redo snapshots
+    // in their on_set_state function could snapshot a state with the new gizmo already active.
+    // Therefore, just remember what needs to be done and actually change m_current afterwards.
+    EType new_current = m_current;
+
     for (GizmosMap::iterator it = m_gizmos.begin(); it != m_gizmos.end(); ++it)
     {
         if ((it->second == nullptr) || !it->second->is_selectable())
@@ -1075,13 +1080,14 @@ void GLGizmosManager::update_on_off_state(const Vec2d& mouse_pos)
         {
             if ((it->second->get_state() == GLGizmoBase::On))
             {
+                it->second->set_state(GLGizmoBase::Off); // so the gizmo is informed it is being turned off
                 it->second->set_state(GLGizmoBase::Hover);
-                m_current = Undefined;
+                new_current = Undefined;
             }
             else if ((it->second->get_state() == GLGizmoBase::Hover))
             {
                 it->second->set_state(GLGizmoBase::On);
-                m_current = it->first;
+                new_current = it->first;
             }
         }
         else
@@ -1089,6 +1095,8 @@ void GLGizmosManager::update_on_off_state(const Vec2d& mouse_pos)
 
         top_y += scaled_stride_y;
     }
+
+    m_current = new_current;
 
     GizmosMap::iterator it = m_gizmos.find(m_current);
     if ((it != m_gizmos.end()) && (it->second != nullptr) && (it->second->get_state() != GLGizmoBase::On))

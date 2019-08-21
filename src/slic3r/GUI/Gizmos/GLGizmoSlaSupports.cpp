@@ -1100,6 +1100,12 @@ std::string GLGizmoSlaSupports::on_get_name() const
 
 void GLGizmoSlaSupports::on_set_state()
 {
+    if (m_state == Hover)
+        return;
+    m_no_hover_state = m_state;
+    if (m_no_hover_state != m_no_hover_old_state)
+        Plater::TakeSnapshot snapshot(wxGetApp().plater(), _(L("SLA gizmo turned on/off")));
+
     // m_model_object pointer can be invalid (for instance because of undo/redo action),
     // we should recover it from the object id
     m_model_object = nullptr;
@@ -1110,7 +1116,7 @@ void GLGizmoSlaSupports::on_set_state()
         }
     }
 
-    if (m_state == On && m_old_state != On) { // the gizmo was just turned on
+    if (m_no_hover_state == On && m_no_hover_old_state != On) { // the gizmo was just turned on
         if (is_mesh_update_necessary())
             update_mesh();
 
@@ -1126,7 +1132,7 @@ void GLGizmoSlaSupports::on_set_state()
         const DynamicPrintConfig& cfg = wxGetApp().preset_bundle->sla_prints.get_edited_preset().config;
         m_new_point_head_diameter = static_cast<const ConfigOptionFloat*>(cfg.option("support_head_front_diameter"))->value;
     }
-    if (m_state == Off && m_old_state != Off) { // the gizmo was just turned Off
+    if (m_no_hover_state == Off && m_no_hover_old_state != Off) { // the gizmo was just turned Off
         wxGetApp().CallAfter([this]() {
             // Following is called through CallAfter, because otherwise there was a problem
             // on OSX with the wxMessageDialog being shown several times when clicked into.
@@ -1151,7 +1157,7 @@ void GLGizmoSlaSupports::on_set_state()
             m_supports_tms.reset();
         });
     }
-    m_old_state = m_state;
+    m_no_hover_old_state = m_no_hover_state;
 }
 
 
