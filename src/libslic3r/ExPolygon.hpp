@@ -24,6 +24,9 @@ public:
     ExPolygon& operator=(const ExPolygon &other) { contour = other.contour; holes = other.holes; return *this; }
     ExPolygon& operator=(ExPolygon &&other) { contour = std::move(other.contour); holes = std::move(other.holes); return *this; }
 
+    inline explicit ExPolygon(const Polygon &p): contour(p) {}
+    inline explicit ExPolygon(Polygon &&p): contour(std::move(p)) {}
+
     Polygon contour;
     Polygons holes;
 
@@ -79,7 +82,7 @@ inline size_t number_polygons(const ExPolygons &expolys)
     return n_polygons;
 }
 
-inline Lines to_lines(const ExPolygon &src) 
+inline Lines to_lines(const ExPolygon &src)
 {
     size_t n_lines = src.contour.points.size();
     for (size_t i = 0; i < src.holes.size(); ++ i)
@@ -95,7 +98,7 @@ inline Lines to_lines(const ExPolygon &src)
     return lines;
 }
 
-inline Lines to_lines(const ExPolygons &src) 
+inline Lines to_lines(const ExPolygons &src)
 {
     size_t n_lines = 0;
     for (ExPolygons::const_iterator it_expoly = src.begin(); it_expoly != src.end(); ++ it_expoly) {
@@ -230,15 +233,15 @@ inline Polygons to_polygons(ExPolygons &&src)
     return polygons;
 }
 
-inline void polygons_append(Polygons &dst, const ExPolygon &src) 
-{ 
+inline void polygons_append(Polygons &dst, const ExPolygon &src)
+{
     dst.reserve(dst.size() + src.holes.size() + 1);
     dst.push_back(src.contour);
     dst.insert(dst.end(), src.holes.begin(), src.holes.end());
 }
 
-inline void polygons_append(Polygons &dst, const ExPolygons &src) 
-{ 
+inline void polygons_append(Polygons &dst, const ExPolygons &src)
+{
     dst.reserve(dst.size() + number_polygons(src));
     for (ExPolygons::const_iterator it = src.begin(); it != src.end(); ++ it) {
         dst.push_back(it->contour);
@@ -247,7 +250,7 @@ inline void polygons_append(Polygons &dst, const ExPolygons &src)
 }
 
 inline void polygons_append(Polygons &dst, ExPolygon &&src)
-{ 
+{
     dst.reserve(dst.size() + src.holes.size() + 1);
     dst.push_back(std::move(src.contour));
     std::move(std::begin(src.holes), std::end(src.holes), std::back_inserter(dst));
@@ -255,7 +258,7 @@ inline void polygons_append(Polygons &dst, ExPolygon &&src)
 }
 
 inline void polygons_append(Polygons &dst, ExPolygons &&src)
-{ 
+{
     dst.reserve(dst.size() + number_polygons(src));
     for (ExPolygons::iterator it = src.begin(); it != src.end(); ++ it) {
         dst.push_back(std::move(it->contour));
@@ -264,13 +267,13 @@ inline void polygons_append(Polygons &dst, ExPolygons &&src)
     }
 }
 
-inline void expolygons_append(ExPolygons &dst, const ExPolygons &src) 
-{ 
+inline void expolygons_append(ExPolygons &dst, const ExPolygons &src)
+{
     dst.insert(dst.end(), src.begin(), src.end());
 }
 
 inline void expolygons_append(ExPolygons &dst, ExPolygons &&src)
-{ 
+{
     if (dst.empty()) {
         dst = std::move(src);
     } else {
@@ -348,8 +351,8 @@ namespace boost { namespace polygon {
             return expolygon;
         }
     };
-    
-    
+
+
     template <>
     struct geometry_concept<Slic3r::ExPolygon> { typedef polygon_with_holes_concept type; };
 
@@ -376,7 +379,7 @@ namespace boost { namespace polygon {
               return t;
          }
     };
-    
+
     //first we register CPolygonSet as a polygon set
     template <>
     struct geometry_concept<Slic3r::ExPolygons> { typedef polygon_set_concept type; };

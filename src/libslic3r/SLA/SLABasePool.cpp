@@ -714,6 +714,33 @@ void base_plate(const TriangleMesh &mesh,
     base_plate(mesh, output, heights, thrfn);
 }
 
+double initial_angle(double r, double px, double py) {
+    // now we will calculate the angle or portion of the circle from
+    // pi/2 that will connect perfectly with the bottom plate.
+    // this is a tangent point calculation problem and the equation can
+    // be found for example here:
+    // http://www.ambrsoft.com/TrigoCalc/Circles2/CirclePoint/CirclePointDistance.htm
+    // the y coordinate would be:
+    // y = cy + (r^2*py - r*px*sqrt(px^2 + py^2 - r^2) / (px^2 + py^2)
+    // where px and py are the coordinates of the point outside the circle
+    // cx and cy are the circle center, r is the radius
+    // We place the circle center to (0, 0) in the calculation the make
+    // things easier.
+    // to get the angle we use arcsin function and subtract 90 degrees then
+    // flip the sign to get the right input to the round_edge function.
+
+    double cy = 0;
+    double cx = 0;
+
+    double pxcx = px - cx;
+    double pycy = py - cy;
+    double b_2 = pxcx*pxcx + pycy*pycy;
+    double r_2 = r*r;
+    double D = std::sqrt(b_2 - r_2);
+    double vy = (r_2*pycy - r*pxcx*D) / b_2;
+    return -(std::asin(vy/r) * 180 / PI - 90);
+}
+
 Contour3D create_base_pool(const Polygons &ground_layer,
                            const ExPolygons &obj_self_pad = {},
                            const PoolConfig& cfg = PoolConfig())
@@ -730,7 +757,8 @@ Contour3D create_base_pool(const Polygons &ground_layer,
     // serve as the bottom plate of the pad. We will offset this concave hull
     // and then offset back the result with clipper with rounding edges ON. This
     // trick will create a nice rounded pad shape.
-    Polygons concavehs = concave_hull(ground_layer, mergedist, cfg.throw_on_cancel);
+//    Polygons concavehs = concave_hull(ground_layer, mergedist, cfg.throw_on_cancel);
+    Polygons concavehs = union_(ground_layer);
 
     const double thickness      = cfg.min_wall_thickness_mm;
     const double wingheight     = cfg.min_wall_height_mm;
@@ -751,7 +779,7 @@ Contour3D create_base_pool(const Polygons &ground_layer,
     Contour3D pool;
 
     for(Polygon& concaveh : concavehs) {
-        if(concaveh.points.empty()) return pool;
+        if(concaveh.points.empty()) continue;
 
         // Here lies the trick that does the smoothing only with clipper offset
         // calls. The offset is configured to round edges. Inner edges will
@@ -760,14 +788,13 @@ Contour3D create_base_pool(const Polygons &ground_layer,
         auto outer_base = concaveh;
         offset(outer_base, s_safety_dist + s_wingdist + s_thickness);
 
-        ExPolygon bottom_poly; bottom_poly.contour = outer_base;
-        if (s_bottom_offs != 0) offset(bottom_poly, -s_bottom_offs);
+        ExPolygon bottom_poly(outer_base);
+        offset(bottom_poly, -s_bottom_offs);
 
         // Punching a hole in the top plate for the cavity
-        ExPolygon top_poly;
+        ExPolygon top_poly(outer_base);
         ExPolygon middle_base;
         ExPolygon inner_base;
-        top_poly.contour = outer_base;
 
         if(wingheight > 0) {
             inner_base.contour = outer_base;
@@ -780,35 +807,10 @@ Contour3D create_base_pool(const Polygons &ground_layer,
             std::reverse(tph.begin(), tph.end());
         }
 
-        ExPolygon ob; ob.contour = outer_base; double wh = 0;
-
-        // now we will calculate the angle or portion of the circle from
-        // pi/2 that will connect perfectly with the bottom plate.
-        // this is a tangent point calculation problem and the equation can
-        // be found for example here:
-        // http://www.ambrsoft.com/TrigoCalc/Circles2/CirclePoint/CirclePointDistance.htm
-        // the y coordinate would be:
-        // y = cy + (r^2*py - r*px*sqrt(px^2 + py^2 - r^2) / (px^2 + py^2)
-        // where px and py are the coordinates of the point outside the circle
-        // cx and cy are the circle center, r is the radius
-        // We place the circle center to (0, 0) in the calculation the make
-        // things easier.
-        // to get the angle we use arcsin function and subtract 90 degrees then
-        // flip the sign to get the right input to the round_edge function.
-        double r = cfg.edge_radius_mm;
-        double cy = 0;
-        double cx = 0;
-        double px = thickness + wingdist;
-        double py = r - fullheight;
-
-        double pxcx = px - cx;
-        double pycy = py - cy;
-        double b_2 = pxcx*pxcx + pycy*pycy;
-        double r_2 = r*r;
-        double D = std::sqrt(b_2 - r_2);
-        double vy = (r_2*pycy - r*pxcx*D) / b_2;
-        double phi = -(std::asin(vy/r) * 180 / PI - 90);
-
+        ExPolygon ob(outer_base);
+        double wh  = 0;  // placeholder for the height level when rounding ends
+        double r   = cfg.edge_radius_mm;
+        double phi = initial_angle(r, thickness + wingdist, r - fullheight);
 
         // Generate the smoothed edge geometry
         if(s_eradius > 0) pool.merge(round_edges(ob,
@@ -817,10 +819,13 @@ Contour3D create_base_pool(const Polygons &ground_layer,
                                0,    // z position of the input plane
                                true,
                                thrcl,
-                               ob, wh));
+                               ob, wh)); // output vars
 
         // Now that we have the rounded edge connecting the top plate with
         // the outer side walls, we can generate and merge the sidewall geometry
+        // Notice we hand over ob and wh which are the polygons after the
+        // previous (possible) round_edges call. It modifies the upper polygon
+        // and the its height level to which the wall is connected.
         pool.merge(walls(ob.contour, bottom_poly.contour, wh, -fullheight,
                          bottom_offs, thrcl));
 
