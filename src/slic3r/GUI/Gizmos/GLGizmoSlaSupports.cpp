@@ -1103,8 +1103,6 @@ void GLGizmoSlaSupports::on_set_state()
     if (m_state == Hover)
         return;
     m_no_hover_state = m_state;
-    if (m_no_hover_state != m_no_hover_old_state)
-        Plater::TakeSnapshot snapshot(wxGetApp().plater(), _(L("SLA gizmo turned on/off")));
 
     // m_model_object pointer can be invalid (for instance because of undo/redo action),
     // we should recover it from the object id
@@ -1117,6 +1115,8 @@ void GLGizmoSlaSupports::on_set_state()
     }
 
     if (m_no_hover_state == On && m_no_hover_old_state != On) { // the gizmo was just turned on
+        Plater::TakeSnapshot snapshot(wxGetApp().plater(), _(L("SLA gizmo turned on")));
+
         if (is_mesh_update_necessary())
             update_mesh();
 
@@ -1133,7 +1133,7 @@ void GLGizmoSlaSupports::on_set_state()
         m_new_point_head_diameter = static_cast<const ConfigOptionFloat*>(cfg.option("support_head_front_diameter"))->value;
     }
     if (m_no_hover_state == Off && m_no_hover_old_state != Off) { // the gizmo was just turned Off
-        wxGetApp().CallAfter([this]() {
+       /* wxGetApp().CallAfter([this]() */{
             // Following is called through CallAfter, because otherwise there was a problem
             // on OSX with the wxMessageDialog being shown several times when clicked into.
             if (m_model_object) {
@@ -1146,8 +1146,9 @@ void GLGizmoSlaSupports::on_set_state()
                         editing_mode_discard_changes();
                 }
             }
-            m_parent.toggle_model_objects_visibility(true);
             disable_editing_mode(); // so it is not active next time the gizmo opens
+            Plater::TakeSnapshot snapshot(wxGetApp().plater(), _(L("SLA gizmo turned off")));
+            m_parent.toggle_model_objects_visibility(true);
             m_normal_cache.clear();
             m_clipping_plane_distance = 0.f;
             // Release triangle mesh slicer and the AABB spatial search structure.
@@ -1155,7 +1156,7 @@ void GLGizmoSlaSupports::on_set_state()
             m_its = nullptr;
             m_tms.reset();
             m_supports_tms.reset();
-        });
+        }//);
     }
     m_no_hover_old_state = m_no_hover_state;
 }
