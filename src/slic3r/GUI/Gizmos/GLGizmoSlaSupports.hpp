@@ -86,6 +86,8 @@ public:
 
     bool is_in_editing_mode() const { return m_editing_mode; }
     bool is_selection_rectangle_dragging() const { return m_selection_rectangle.is_dragging(); }
+    bool has_backend_supports() const;
+    void reslice_SLA_supports() const;
 
 private:
     bool on_init();
@@ -100,6 +102,7 @@ private:
     void update_mesh();
     void update_cache_entry_normal(unsigned int i) const;
     bool unsaved_changes() const;
+    void take_snapshot_internal(const wxString& desc);
 
     bool m_lock_unique_islands = false;
     bool m_editing_mode = false;            // Is editing mode active?
@@ -126,6 +129,7 @@ private:
     bool m_wait_for_up_event = false;
     bool m_selection_empty = true;
     EState m_old_state = Off; // to be able to see that the gizmo has just been closed (see on_set_state)
+    bool m_internal_snapshot = false;
 
     mutable std::unique_ptr<TriangleMeshSlicer> m_tms;
     mutable std::unique_ptr<TriangleMeshSlicer> m_supports_tms;
