@@ -1133,30 +1133,29 @@ void GLGizmoSlaSupports::on_set_state()
         m_new_point_head_diameter = static_cast<const ConfigOptionFloat*>(cfg.option("support_head_front_diameter"))->value;
     }
     if (m_no_hover_state == Off && m_no_hover_old_state != Off) { // the gizmo was just turned Off
-       /* wxGetApp().CallAfter([this]() */{
-            // Following is called through CallAfter, because otherwise there was a problem
-            // on OSX with the wxMessageDialog being shown several times when clicked into.
-            if (m_model_object) {
-                if (m_editing_mode && unsaved_changes()) {
-                    wxMessageDialog dlg(GUI::wxGetApp().mainframe, _(L("Do you want to save your manually edited support points?")) + "\n",
-                                        _(L("Save changes?")), wxICON_QUESTION | wxYES | wxNO);
-                    if (dlg.ShowModal() == wxID_YES)
-                        editing_mode_apply_changes();
-                    else
-                        editing_mode_discard_changes();
-                }
-            }
-            disable_editing_mode(); // so it is not active next time the gizmo opens
-            Plater::TakeSnapshot snapshot(wxGetApp().plater(), _(L("SLA gizmo turned off")));
-            m_parent.toggle_model_objects_visibility(true);
-            m_normal_cache.clear();
-            m_clipping_plane_distance = 0.f;
-            // Release triangle mesh slicer and the AABB spatial search structure.
-            m_AABB.deinit();
-            m_its = nullptr;
-            m_tms.reset();
-            m_supports_tms.reset();
-        }//);
+       if (m_model_object && m_editing_mode && unsaved_changes()) {
+        #ifndef __APPLE__
+            // The wxMessageDialog was shown several times when clicked into for some wxReason
+            // CallAfter solved the problem, but it messes undo/redo snapshots taking
+            // We will just always assume that user wants the point saved.
+            wxMessageDialog dlg(GUI::wxGetApp().mainframe, _(L("Do you want to save your manually "
+                "edited support points?")) + "\n", _(L("Save changes?")), wxICON_QUESTION | wxYES | wxNO);
+            if (dlg.ShowModal() == wxID_NO)
+                editing_mode_discard_changes();
+            else
+        #endif
+                editing_mode_apply_changes();
+        }
+        disable_editing_mode(); // so it is not active next time the gizmo opens
+        Plater::TakeSnapshot snapshot(wxGetApp().plater(), _(L("SLA gizmo turned off")));
+        m_parent.toggle_model_objects_visibility(true);
+        m_normal_cache.clear();
+        m_clipping_plane_distance = 0.f;
+        // Release triangle mesh slicer and the AABB spatial search structure.
+        m_AABB.deinit();
+        m_its = nullptr;
+        m_tms.reset();
+        m_supports_tms.reset();
     }
     m_no_hover_old_state = m_no_hover_state;
 }
