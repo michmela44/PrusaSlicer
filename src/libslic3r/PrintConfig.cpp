@@ -2647,6 +2647,14 @@ void PrintConfigDef::init_sla_params()
     def->max = 150; // This is the max height of print on SL1
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionFloat(5.0));
+    
+    def = this->add("support_disable_elevation", coBool);
+    def->label = L("Disable elevation");
+    def->category = L("Supports");
+    def->tooltip  = L("Disable object elevation. Support points will not be "
+                     "generated under the model.");
+    def->mode = comSimple;
+    def->set_default_value(new ConfigOptionBool(false));
 
     def = this->add("support_points_density_relative", coInt);
     def->label = L("Support points density");
@@ -2727,11 +2735,13 @@ void PrintConfigDef::init_sla_params()
     def->max = 90;
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionFloat(45.0));
-
-    def = this->add("pad_zero_elevation", coBool);
+    
+    def = this->add("pad_around_object", coBool);
     def->label = L("Pad around object");
     def->category = L("Pad");
-    def->tooltip = L("Create pad around object and ignore the support elevation");
+    def->tooltip  = L("Pad will be created around the object (not below it). "
+                     "To use this feature you need to disable elevation for "
+                     "supports or disable support generation completely.");
     def->mode = comSimple;
     def->set_default_value(new ConfigOptionBool(false));
 

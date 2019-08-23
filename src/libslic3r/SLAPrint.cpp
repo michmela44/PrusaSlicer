@@ -577,12 +577,7 @@ std::string SLAPrint::output_filename(const std::string &filename_base) const
 namespace {
 
 bool is_zero_elevation(const SLAPrintObjectConfig &c) {
-    bool en_implicit = c.support_object_elevation.getFloat() <= EPSILON &&
-                       c.pad_enable.getBool() && c.supports_enable.getBool();
-    bool en_explicit = c.pad_zero_elevation.getBool() &&
-                       c.supports_enable.getBool();
-
-    return en_implicit || en_explicit;
+    return c.support_disable_elevation.getBool() && c.supports_enable.getBool();
 }
 
 // Compile the argument for support creation from the static print config.
@@ -620,7 +615,7 @@ sla::SupportConfig make_support_cfg(const SLAPrintObjectConfig& c) {
 sla::PoolConfig::EmbedObject builtin_pad_cfg(const SLAPrintObjectConfig& c) {
     sla::PoolConfig::EmbedObject ret;
 
-    ret.enabled = is_zero_elevation(c);
+    ret.enabled = is_zero_elevation(c) && c.pad_around_object.getBool();
 
     if(ret.enabled) {
         ret.object_gap_mm        = c.pad_object_gap.getFloat();
@@ -676,10 +671,11 @@ std::string SLAPrint::validate() const
 
         double elv = cfg.object_elevation_mm;
 
-        if(supports_en && elv > EPSILON && elv < pinhead_width )
+        if (supports_en && !po->config().support_disable_elevation &&
+            elv < pinhead_width)
             return L(
-                "Elevation is too low for object. Use the \"Pad around "
-                "obect\" feature to print the object without elevation.");
+                "Elevation is too low, pinheads would not fit under object. "
+                "You can disable elevation to print on the plate directly.");
 
         sla::PoolConfig::EmbedObject builtinpad = builtin_pad_cfg(po->config());
         if(supports_en && builtinpad.enabled &&
@@ -1014,7 +1010,8 @@ void SLAPrint::process()
             // This call can get pretty time consuming
             auto thrfn = [this](){ throw_if_canceled(); };
 
-            if (!po.m_config.supports_enable.getBool() || pcfg.embed_object) {
+            if (!po.m_config.supports_enable.getBool() || pcfg.embed_object ||
+                po.m_config.support_disable_elevation.getBool()) {
                 // No support (thus no elevation) or zero elevation mode
                 // we sometimes call it "builtin pad" is enabled so we will
                 // get a sample from the bottom of the mesh and use it for pad
@@ -1698,7 +1695,8 @@ bool SLAPrintObject::invalidate_state_by_config_options(const std::vector<t_conf
             || opt_key == "pad_wall_thickness"
             || opt_key == "supports_enable"
             || opt_key == "support_object_elevation"
-            || opt_key == "pad_zero_elevation"
+            || opt_key == "support_disable_elevation"
+            || opt_key == "pad_around_object"
             || opt_key == "slice_closing_radius") {
             steps.emplace_back(slaposObjectSlice);
         } else if (
@@ -1771,11 +1769,13 @@ bool SLAPrintObject::invalidate_all_steps()
 }
 
 double SLAPrintObject::get_elevation() const {
-    if (is_zero_elevation(m_config)) return 0.;
 
     bool en = m_config.supports_enable.getBool();
+    double elv = is_zero_elevation(m_config) ?
+                    0. :
+                    m_config.support_object_elevation.getFloat();
 
-    double ret = en ? m_config.support_object_elevation.getFloat() : 0.;
+    double ret = en ? elv : 0.;
 
     if(m_config.pad_enable.getBool()) {
         // Normally the elevation for the pad itself would be the thickness of

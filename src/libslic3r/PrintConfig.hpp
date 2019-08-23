@@ -1007,6 +1007,8 @@ public:
     // The elevation in Z direction upwards. This is the space between the pad
     // and the model object's bounding box bottom. Units in mm.
     ConfigOptionFloat support_object_elevation /*= 5.0*/;
+    
+    ConfigOptionBool support_disable_elevation;
 
     /////// Following options influence automatic support points placement:
     ConfigOptionInt support_points_density_relative;
@@ -1042,7 +1044,7 @@ public:
     // /////////////////////////////////////////////////////////////////////////
 
     // Disable the elevation (ignore its value) and use the zero elevation mode
-    ConfigOptionBool  pad_zero_elevation;
+    ConfigOptionBool  pad_around_object;
 
     // This is the gap between the object bottom and the generated pad
     ConfigOptionFloat pad_object_gap;
@@ -1079,13 +1081,14 @@ protected:
         OPT_PTR(support_points_density_relative);
         OPT_PTR(support_points_minimal_distance);
         OPT_PTR(support_object_elevation);
+        OPT_PTR(support_disable_elevation);
         OPT_PTR(pad_enable);
         OPT_PTR(pad_wall_thickness);
         OPT_PTR(pad_wall_height);
         OPT_PTR(pad_max_merge_distance);
         // OPT_PTR(pad_edge_radius);
         OPT_PTR(pad_wall_slope);
-        OPT_PTR(pad_zero_elevation);
+        OPT_PTR(pad_around_object);
         OPT_PTR(pad_object_gap);
         OPT_PTR(pad_object_connector_stride);
         OPT_PTR(pad_object_connector_width);

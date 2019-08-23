@@ -193,6 +193,7 @@ encoding_check(libslic3r)
 
 if (SLIC3R_PCH AND NOT SLIC3R_SYNTAXONLY)
     add_precompiled_header(libslic3r pchheader.hpp FORCEINCLUDE)
+    set(QTC_libslic3r_PCH pchheader.hpp CACHE INTERNAL "")
 endif ()
 
 target_compile_definitions(libslic3r PUBLIC -DUSE_TBB)
